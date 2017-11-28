@@ -4744,6 +4744,7 @@ void TIM_OC1_SetConfig(TIM_TypeDef *TIMx, TIM_OC_InitTypeDef *OC_Config)
     tmpccer |= OC_Config->OCNPolarity;
     /* Reset the Output N State */
     tmpccer &= ~TIM_CCER_CC1NE;
+    //tmpccer |= TIM_CCER_CC1NE;
   }
   
   if(IS_TIM_BREAK_INSTANCE(TIMx))
@@ -4818,6 +4819,7 @@ void TIM_OC2_SetConfig(TIM_TypeDef *TIMx, TIM_OC_InitTypeDef *OC_Config)
     tmpccer |= (OC_Config->OCNPolarity << 4U);
     /* Reset the Output N State */
     tmpccer &= ~TIM_CCER_CC2NE;
+    //tmpccer |= TIM_CCER_CC2NE;
     
   }
 
@@ -4897,6 +4899,7 @@ void TIM_OC3_SetConfig(TIM_TypeDef *TIMx, TIM_OC_InitTypeDef *OC_Config)
     tmpccer |= (OC_Config->OCNPolarity << 8U);
     /* Reset the Output N State */
     tmpccer &= ~TIM_CCER_CC3NE;
+    //tmpccer |= TIM_CCER_CC3NE;
   }
   
   if(IS_TIM_BREAK_INSTANCE(TIMx))

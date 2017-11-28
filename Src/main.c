@@ -39,13 +39,14 @@
 #include "main.h"
 #include "stm32f3xx_hal.h"
 #include "adc.h"
+#include "dma.h"
 #include "i2c.h"
 #include "tim.h"
 #include "gpio.h"
 
 
-#include "6Step_Lib.h"
-#include "mc_adapter.h"
+#include "motor_control.h"
+#include "bsp.h"
 
 /* USER CODE BEGIN Includes */
 
@@ -60,61 +61,38 @@ void SystemClock_Config(void);
 volatile uint32_t test = 0;
 volatile uint32_t i2c_test = 0;
 
+//extern void initialise_monitor_handles(void);
 
 
 
 int main(void)
 {
-
-  /* USER CODE BEGIN 1 */
-
-  /* USER CODE END 1 */
-
-  /* MCU Configuration----------------------------------------------------------*/
-
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_I2C1_Init();
   MX_ADC1_Init();
   MX_ADC3_Init();
   MX_ADC4_Init();
   MX_TIM1_Init();
   MX_TIM4_Init();
-	set_led_status(1);
 
-  /* USER CODE BEGIN 2 */
+  //initialise_monitor_handles();
+  //printf("Starting\n");
+  mc_init();
+  //printf("Motor Controller Initialized\n");
 
-  //Setup ADC DMA
-
-  //MC_SixStep_RESET();
-  //MC_SixStep_INIT();
-
-  //MC_SixStep_ADC_Channel(TEMPERATURE);
-
- 	//HAL_I2C_EnableListen_IT(&hi2c1);
-//  i2c_comm_init(&hi2c1);
-	set_led_status(0);
 
   while (1)
   {
-//    i2c_comm_periodic(&hi2c1);
 		test++;
   }
-
 }
 
 /** System Clock Configuration
@@ -157,8 +135,8 @@ void SystemClock_Config(void)
 
   PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_I2C1|RCC_PERIPHCLK_TIM1
                               |RCC_PERIPHCLK_ADC12|RCC_PERIPHCLK_ADC34;
-  PeriphClkInit.Adc12ClockSelection = RCC_ADC12PLLCLK_DIV2;
-  PeriphClkInit.Adc34ClockSelection = RCC_ADC34PLLCLK_DIV2;
+  PeriphClkInit.Adc12ClockSelection = RCC_ADC12PLLCLK_DIV1;
+  PeriphClkInit.Adc34ClockSelection = RCC_ADC34PLLCLK_DIV1;
   PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_HSI;
   PeriphClkInit.Tim1ClockSelection = RCC_TIM1CLK_HCLK;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
@@ -221,5 +199,7 @@ void assert_failed(uint8_t* file, uint32_t line)
 /**
   * @}
 */ 
+
+
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

@@ -73,14 +73,15 @@ Src/adc.c \
 Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_i2c_ex.c \
 Src/tim.c \
 Src/gpio.c \
+Src/dma.c \
 Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_hal_i2c.c \
 Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_i2c.c \
 Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_utils.c \
 Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_dma.c \
 Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_gpio.c \
 Drivers/STM32F3xx_HAL_Driver/Src/stm32f3xx_ll_exti.c \
-Src/mc_adapter.c \
-Src/6Step_Lib.c
+Src/bsp.c \
+Src/motor_control.c
 
 # ASM sources
 ASM_SOURCES =  \
@@ -168,6 +169,8 @@ LDSCRIPT = STM32F303CBTx_FLASH.ld
 # libraries
 LIBS = -lc -lm -lnosys
 LIBDIR =
+#LDFLAGS = $(MCU) -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map,--cref -Wl,--gc-sections
+#LDFLAGS += -specs=rdimon.specs -lrdimon -lc
 LDFLAGS = $(MCU) -specs=nano.specs -T$(LDSCRIPT) $(LIBDIR) $(LIBS) -Wl,-Map=$(BUILD_DIR)/$(TARGET).map,--cref -Wl,--gc-sections
 
 
@@ -219,7 +222,7 @@ server:
 	openocd -f interface/stlink-v2.cfg -f target/stm32f3x.cfg
 
 openocd:
-	openocd -f interface/stlink-v2.cfg -c "set WORKAREASIZE 0x2000" -f target/stm32f3x.cfg -c "program build/main.elf verify reset"
+	openocd -f interface/stlink-v2.cfg -f target/stm32f3x.cfg -c "program build/main.elf verify reset"
 
 #######################################
 # clean up

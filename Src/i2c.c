@@ -1,47 +1,12 @@
-/**
-  ******************************************************************************
-  * File Name          : I2C.c
-  * Description        : This file provides code for the configuration
-  *                      of the I2C instances.
-  ******************************************************************************
-  ** This notice applies to any and all portions of this file
-  * that are not between comment pairs USER CODE BEGIN and
-  * USER CODE END. Other portions of this file, whether
-  * inserted by the user or by software development tools
-  * are owned by their respective copyright owners.
-  *
-  * COPYRIGHT(c) 2017 STMicroelectronics
-  *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-  *
-  ******************************************************************************
-  */
-
 /* Includes ------------------------------------------------------------------*/
+#include <stdio.h>
 #include "i2c.h"
 #include "gpio.h"
+#include "bsp.h"
+#include <string.h>
+#include "motor_control.h"
 
-#define BUFFER_DEPTH 100
+#define BUFFER_DEPTH 256
 typedef struct
 {
   uint8_t state;
@@ -56,6 +21,7 @@ typedef struct
 i2c_struct_t i2c_struct;
 void I2C_IRQ_Handler(unsigned char flags, unsigned short rx_data);
 
+//uint8_t *bemf_debug_buffer;
 enum I2C_FLAG_ENUM {
   I2C_TX_READY = 0,
   I2C_RX_AVAILABLE,
@@ -78,12 +44,21 @@ enum I2C_STATE_ENUM {
 };
 
 enum I2C_COMM_REG_ADDR {
-  I2C_REG_STATUS = 1,
-  I2C_REG_RPM = 2,
-  I2C_REG_TORQUE = 3
+  I2C_REG_STATUS            = 1,
+  I2C_REG_ERROR             = 2,
+	I2C_REG_ERPM              = 3,
+  I2C_REG_RPM               = 4,
+  I2C_REG_CURRENT           = 5,
+  I2C_REG_VBUS              = 6,
+  I2C_REG_TEMP              = 7,
+  I2C_REG_TARGET_OL_ERPM    = 8,
+  I2C_REG_BEMF_SAMPLE_COUNT = 9,
+  I2C_REG_BEMF_BUFFER       = 10,
+  I2C_REG_BEMF_BUFFER_DEPTH = 11
 };
 
 int i2c_debug = 0;
+extern uint32_t uwTick;
 uint32_t temp = 0;
 
 void I2C1_EV_IRQHandler(void){
@@ -164,7 +139,7 @@ XX  I2C_FLAG_BUSY
   //Transmit Data Register Empty
   //if (I2C_GetITStatus(I2C1, I2C_IT_TXIS) == SET){
   if (LL_I2C_IsActiveFlag_TXIS(I2C1)){
-    i2c_debug++;
+    //i2c_debug++;
     I2C_IRQ_Handler(I2C_TX_READY, 0);
     //The only way to clear is to write to the transmit register
     //LL_I2C_ClearFlag_(I2C1);
@@ -223,13 +198,6 @@ void I2C1_ER_IRQHandler(void){
     //i2c_debug ++;
 }
 
-
-
-/* USER CODE BEGIN 0 */
-
-/* USER CODE END 0 */
-
-/* I2C1 init function */
 void MX_I2C1_Init(void)
 {
   LL_I2C_InitTypeDef I2C_InitStruct;
@@ -243,8 +211,10 @@ void MX_I2C1_Init(void)
   GPIO_InitStruct.Pin = LL_GPIO_PIN_6|LL_GPIO_PIN_7;
   GPIO_InitStruct.Mode = LL_GPIO_MODE_ALTERNATE;
   GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_HIGH;
+  //GPIO_InitStruct.Speed = LL_GPIO_SPEED_FREQ_LOW;
   GPIO_InitStruct.OutputType = LL_GPIO_OUTPUT_OPENDRAIN;
-  GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  //GPIO_InitStruct.Pull = LL_GPIO_PULL_UP;
+  GPIO_InitStruct.Pull = LL_GPIO_PULL_NO;
   GPIO_InitStruct.Alternate = LL_GPIO_AF_4;
   LL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
@@ -297,63 +267,86 @@ void MX_I2C1_Init(void)
 
   LL_I2C_EnableOwnAddress1(I2C1);
   LL_I2C_Enable(I2C1);
+
+
+  //bemf_debug_buffer = mc_get_bemf_buffer_handle();
 }
-
-/* USER CODE BEGIN 1 */
-
-/* USER CODE END 1 */
-
-/**
-  * @}
-  */
 
 /**
   * @}
   */
 
 void I2C_IRQ_Handler(unsigned char flags, unsigned short rx_data){
-  //int16_t data;
+  int32_t data;
+	//int16_t d16_data;
   //This just updates the state
   switch (flags) {
-//    case (I2C_TX_READY):
-//      break;
-//    case (I2C_RX_AVAILABLE):
-//      i2c_struct.state = I2C_READ_FROM_MASTER;
-//      break;
     case (I2C_ADDR_MATCH):
       if (rx_data == 0) {
-        //i2c_debug = -2;
         i2c_struct.rx_index = 0;
         i2c_struct.state = I2C_READ_ADDR;
       }
-      //else if (rx_data == 1) {
       else {
-        //i2c_debug = -4;
         i2c_debug = 0;
         i2c_struct.tx_index = 0;
         switch(i2c_struct.address){
           case (0):
             //i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) MCI_GetSTMState(cmci);
-            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) 0;
+            //i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) 0;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (uwTick >> 24) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (uwTick >> 16) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (uwTick >>  8) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (uwTick >>  0) & 0xFF;
+            break;
           case (I2C_REG_STATUS):
-            //data = MCI_GetCurrentFaults(cmci);
-            //XXX:
-            //data = 0x0123;
-            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) 1;
-            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) 2;
+            data = mc_get_state();
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data & 0xFF);
+            break;
+          case (I2C_REG_ERROR):
+            data = mc_get_error();
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data & 0xFF);
+            break;
+					case (I2C_REG_ERPM):
+						data = mc_get_erpm();
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 24) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 16) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >>  8) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >>  0) & 0xFF;
+            break;
           case (I2C_REG_RPM):
+						data = mc_get_rpm();
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 24) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 16) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >>  8) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >>  0) & 0xFF;
+            break;
+          case (I2C_REG_CURRENT):
+            data = mc_get_current();
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 24) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 16) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >>  8) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >>  0) & 0xFF;
+            break;
+          case (I2C_REG_VBUS):
+            data = mc_get_bus_voltage();
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 24) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 16) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >>  8) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >>  0) & 0xFF;
+            break;
+          case (I2C_REG_TEMP):
+            data = mc_get_temperature();
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 24) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 16) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >>  8) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >>  0) & 0xFF;
+            break;
+          case (I2C_REG_TARGET_OL_ERPM):
+            data = mc_get_ol_target_rpm();
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 8) & 0xFF;
+            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 0) & 0xFF;
+            break;
 
-            //data = MCI_GetAvrgMecSpeed01Hz(cmci);
-            //data = 0x4567;
-            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) 3;
-            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) 4;
-          case (I2C_REG_TORQUE):
-            //data = MCI_GetTorque(cmci);
-            //data = MCI_GetTeref(cmci);
-            //data = 0x789A;
-            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) 5;
-            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) 6;
-          break;
           default:
             //No Command To Execute
             i2c_struct.tx_buffer[i2c_struct.tx_index++] = 0xCA;
@@ -366,6 +359,7 @@ void I2C_IRQ_Handler(unsigned char flags, unsigned short rx_data){
         LL_I2C_TransmitData8(I2C1, i2c_struct.tx_buffer[i2c_struct.tx_index]);
         i2c_struct.tx_index++;
         i2c_struct.state = I2C_WRITE_TO_MASTER;
+
         //LL_I2C_EnableIT_TX(I2C1);
       }
       break;
@@ -374,18 +368,6 @@ void I2C_IRQ_Handler(unsigned char flags, unsigned short rx_data){
 //      i2c_struct.state = I2C_WRITE_TO_MASTER;
 //      break;
 
-//    case (I2C_STOP_DETECT):
-//      switch(i2c_struct.address){
-//      case (I2C_REG_STATUS):
-//        break;
-//      case (I2C_REG_RPM):
-//        break;
-//      case (I2C_REG_TORQUE):
-//        break;
-//      default:
-//        //No Command To Execute
-//        break;
-//      }
 //      i2c_debug = 1;
 //      break;
 //    case (I2C_ACK_DETECT):
@@ -416,14 +398,37 @@ void I2C_IRQ_Handler(unsigned char flags, unsigned short rx_data){
       }
       break;
     case (I2C_READ_FROM_MASTER):
-      //i2c_debug = 5;
       if (flags == I2C_RX_AVAILABLE) {
         i2c_struct.rx_buffer[i2c_struct.rx_index] = rx_data;
         i2c_struct.rx_index++;
       }
+
+			if (flags == I2C_STOP_DETECT){
+				switch(i2c_struct.address){
+					case (0):
+						if (i2c_struct.rx_buffer[0] == 1) {
+							mc_set_speed(2000);
+							mc_start_motor();
+						}
+						else {
+							mc_stop_motor();
+						}
+						break;
+					case (I2C_REG_STATUS):
+						break;
+					case (I2C_REG_RPM):
+						break;
+					default:
+						//No Command To Execute
+						break;
+				}
+			}
+
+
+
+
       break;
     case (I2C_WRITE_TO_MASTER):
-      //i2c_debug++;
       if (flags == I2C_TX_READY){
         //i2c_debug++;
         LL_I2C_TransmitData8(I2C1, i2c_struct.tx_buffer[i2c_struct.tx_index]);
