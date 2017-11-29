@@ -34,11 +34,9 @@
 #include "stm32f3xx_hal.h"
 #include "stm32f3xx.h"
 #include "stm32f3xx_it.h"
-#include "motor_control.h"
 
 /* USER CODE BEGIN 0 */
 
-extern void mc_break_callback();
 /* USER CODE END 0 */
 
 /* External variables --------------------------------------------------------*/
@@ -95,10 +93,6 @@ void ADC1_2_IRQHandler(void)
 void TIM1_BRK_TIM15_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM1_BRK_TIM15_IRQn 0 */
-  if (__HAL_TIM_GET_FLAG(&htim1, TIM_FLAG_BREAK) != RESET)
-  {
-    mc_break_callback();
-  }
 
   /* USER CODE END TIM1_BRK_TIM15_IRQn 0 */
   HAL_TIM_IRQHandler(&htim1);

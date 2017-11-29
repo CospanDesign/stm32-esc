@@ -38,7 +38,9 @@ extern void mc_current_ma_callback(int32_t value);
 extern void mc_vbus_mv_callback(int32_t value);
 extern void mc_temp_c_callback(uint32_t value);
 extern void mc_systick_task(void);
-extern void erpm_task(void);
+extern void erpm_task(uint8_t center);
+extern void mc_break_callback();
+extern void mc_center_pwm_callback();
 
 
 /** HAL_ADC_ConvCpltCallback    HAL_ADC_ConvCpltCallback
@@ -91,7 +93,22 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
  */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  erpm_task();
+  //Called at the center of a PWM cycle
+  if (htim->Instance == ERPM_TIMER.Instance){
+    erpm_task(__HAL_TIM_IS_TIM_COUNTING_DOWN(&PWM_TIMER));
+  }
+  else if (htim->Instance == PWM_TIMER.Instance){
+    if (!__HAL_TIM_IS_TIM_COUNTING_DOWN(&PWM_TIMER)){
+      //This is called in the middle of a PWM Cycle, the best time to capture back emf and Current Driver
+      mc_center_pwm_callback();
+    }
+  }
+}
+
+void HAL_TIMEx_BreakCallback(TIM_HandleTypeDef *htim)
+{
+  //Not yet implemented, this signal needs to be connected to an outside line
+  mc_break_callback();
 }
 
 /** System SYSTICK callback
@@ -101,7 +118,6 @@ void HAL_SYSTICK_Callback()
 {
   mc_systick_task();
 }
-
 
 uint8_t bsp_adc_busy(){
   return adc_busy;
@@ -165,24 +181,15 @@ void bsp_esc_init()
 {
   adc_busy = 0;
 
+  __HAL_TIM_SetAutoreload(&PWM_TIMER, (uint16_t) MAX_PWM & 0xFFFF);
 
 /*
-  TIM_ClearInputConfigTypeDef sClearInputConfig;
-
-  sClearInputConfig.ClearInputState = 1;
-  sClearInputConfig.ClearInputSource = TIM_CLEARINPUTSOURCE_ETR;
-  sClearInputConfig.ClearInputPolarity = TIM_CLEARINPUTPOLARITY_NONINVERTED;
-  sClearInputConfig.ClearInputPrescaler = TIM_CLEARINPUTPRESCALER_DIV1;
-  sClearInputConfig.ClearInputFilter = 0;
-  HAL_TIM_ConfigOCrefClear(&PWM_TIMER, &sClearInputConfig, PWM_TIMER_CH1);
-  HAL_TIM_ConfigOCrefClear(&PWM_TIMER, &sClearInputConfig, PWM_TIMER_CH2);
-  HAL_TIM_ConfigOCrefClear(&PWM_TIMER, &sClearInputConfig, PWM_TIMER_CH3);
-
   HAL_ADC_Start_DMA(&hadc4, (uint32_t *)bemf_buffer, BEMF_BUFFER_SIZE);
 
 */
-//  __HAL_FREEZE_TIM1_DBGMCU();  // Stop TIM during Breakpoint
-//  __HAL_TIM_ENABLE_IT(&htim1, TIM_IT_BREAK); // Enable the TIM Break interrupt
+  __HAL_FREEZE_TIM1_DBGMCU();  // Stop TIM during Breakpoint
+  __HAL_TIM_ENABLE_IT(&PWM_TIMER, TIM_IT_BREAK); // Enable the TIM Break interrupt
+  __HAL_TIM_ENABLE_IT(&PWM_TIMER, TIM_IT_UPDATE);
 }
 
 /**  bsp_enable_input_CH1_E_CH2_E_CH3_D    bsp_enable_input_CH1_E_CH2_E_CH3_D
@@ -247,6 +254,24 @@ void bsp_disable_input_CH1_D_CH2_D_CH3_D()
 
   HAL_TIM_PWM_Stop(&PWM_TIMER,PWM_TIMER_CH3);           //TIM1_CH3 DISABLE  
   HAL_TIMEx_PWMN_Stop(&PWM_TIMER,PWM_TIMER_CH3) ;  
+}
+
+
+void bsp_freewheeling()
+{
+  bsp_pwm_set_duty_cycle_ch1(0);
+  bsp_pwm_set_duty_cycle_ch2(0);
+  bsp_pwm_set_duty_cycle_ch2(0);
+
+  HAL_TIM_PWM_Start(&PWM_TIMER,PWM_TIMER_CH1);           //Enable only the lowside
+  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH1) ;
+
+  HAL_TIM_PWM_Start(&PWM_TIMER,PWM_TIMER_CH2);           //Enable only the lowside
+  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH2) ;
+
+  HAL_TIM_PWM_Start(&PWM_TIMER,PWM_TIMER_CH3);           //Enable only the low side
+  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH3) ;  
+
 }
 
 /**  bsp_start_pwm_driving    bsp_start_pwm_driving

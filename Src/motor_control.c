@@ -5,6 +5,7 @@
 #define MOTOR_DIRECTION (mc_param.reference > 0)
 //These are all set in the motor params
 //static uint8_t  num_pole_pairs        = NUM_POLE_PAIRS;
+static uint16_t ol_startup_duty_cycle = OL_STARTUP_DUTY_CYCLE;
 
 mc_param_t mc_param;            // Motor Controller Parameters
 mc_cl_param_t mc_cl_param;     // Closed loop parameters
@@ -17,9 +18,11 @@ void mc_bemf_callback(uint32_t *adc_buffer, uint8_t length);
 void mc_current_ma_callback(int32_t value);
 void mc_vbus_mv_callback(uint32_t value);
 void mc_temp_c_callback(uint32_t value);
+void mc_break_callback(); //Probably due to a debug situation
+void mc_center_pwm_callback();
 
 void mc_systick_task(void);
-void erpm_task(void);
+void erpm_task(uint8_t center);
 
 void open_loop_current_regulator();
 void open_loop_step();
@@ -55,7 +58,7 @@ void mc_reset(void)
   //Reset all the parameters
   mc_param.state = STATE_IDLE;
   mc_param.step_pos = 1;
-  mc_param.pulse_width = (uint16_t) OL_STARTUP_DUTY_CYCLE;
+  mc_param.pulse_width = ol_startup_duty_cycle;
   mc_param.reference = CL_MIN_SPEED;
   mc_param.rpm = 0;
   mc_param.erpm = 0;
@@ -63,7 +66,7 @@ void mc_reset(void)
   mc_param.current_leg_select = 0;
   mc_param.vbus_mv = 0;
   mc_param.temp_c = 0;
-  mc_param.idle_adc_select = 0;
+  mc_param.adc_select = 0;
 
   //Reset the open loop parameters
   mc_ol_param.target_rpm = (int16_t) OL_MINIMUM_RPM;
@@ -72,23 +75,32 @@ void mc_reset(void)
   mc_ol_param.revolutions = 0;
   mc_ol_param.over_current_flag = 0;
   mc_ol_param.over_current_count = 0;
+  mc_ol_param.request_current_falg = 0;
+  mc_ol_param.kp = OL_KP_GAIN;
 
   //Reset the closed loop parameters
   mc_cl_param.kp = CL_KP_GAIN;
   mc_cl_param.ki = CL_KI_GAIN;
+
+  //Make sure the motor is off
+  bsp_pwm_set_duty_cycle_ch1(0);
+  bsp_pwm_set_duty_cycle_ch2(0);
+  bsp_pwm_set_duty_cycle_ch2(0);
 }
 
 void mc_start_motor(void)
 {
+  bsp_disable_input_CH1_D_CH2_D_CH3_D();
   mc_param.state = STATE_OPEN_LOOP;
   bsp_enable_erpm_timer(1);
 }
 
 void mc_stop_motor(void)
 {
-  bsp_enable_erpm_timer(0);
   bsp_set_led_status(0);
   mc_reset();
+  bsp_freewheeling();
+  bsp_enable_erpm_timer(0);
 }
 
 /* mc_set_speed: Set the speed of the motor (Positive or negative)
@@ -130,7 +142,6 @@ uint8_t mc_get_error()
 {
   return (mc_ol_param.over_current_count > 0) ? mc_param.error | 0x80 : mc_param.error;
 }
-
 
 uint8_t mc_get_state()
 {
@@ -184,7 +195,15 @@ void mc_bemf_callback(uint32_t *adc_buffer, uint8_t length)
 void mc_current_ma_callback(int32_t value)
 {
   mc_param.current_ma = value;
-  open_loop_current_regulator();
+  switch (mc_param.state){
+    case (STATE_OPEN_LOOP):
+      open_loop_current_regulator();
+      break;
+    case (STATE_CLOSED_LOOP):
+      break;
+    default:
+      break;
+  }
 }
 void mc_vbus_mv_callback(uint32_t value)
 {
@@ -194,13 +213,20 @@ void mc_temp_c_callback(uint32_t value)
 {
   mc_param.temp_c = value;
 }
-
 void mc_break_callback()
 {
-  mc_param.state = STATE_OVERCURRENT;
+  //mc_param.state = STATE_OVERCURRENT;
   mc_stop_motor();
 }
-
+void inline mc_center_pwm_callback()
+{
+  if ((mc_param.state == STATE_OPEN_LOOP) && request_current_flag){
+      request_current_flag = 0;
+      bsp_read_current_channel(mc_param.current_leg_select);
+  }
+  else if (mc_param.state == STATE_CLOSED_LOOP)
+      bsp_bemf_adc_capture();
+}
 
 void mc_systick_task(void)
 {
@@ -208,38 +234,68 @@ void mc_systick_task(void)
   bsp_set_led_status(0);
   switch(mc_param.state){
     case STATE_IDLE:
-      switch (mc_param.idle_adc_select){
+      switch (mc_param.adc_select){
         case 0:
           bsp_read_vbus();
-          mc_param.idle_adc_select++;
+          mc_param.adc_select++;
           break;
         case 1:
           bsp_read_temperature();
-          mc_param.idle_adc_select++;
+          mc_param.adc_select++;
           break;
         case 2:
           bsp_read_current_channel(1);
-          mc_param.idle_adc_select++;
+          mc_param.adc_select++;
+          break;
         case 3:
           bsp_read_current_channel(2);
-          mc_param.idle_adc_select++;
+          mc_param.adc_select++;
+          break;
         case 4:
           bsp_read_current_channel(3);
-          mc_param.idle_adc_select = 0;
+          mc_param.adc_select = 0;
+          break;
+        default:
+          mc_param.adc_select = 0;
+          break;
       }
       break;
     case STATE_OPEN_LOOP:
-      bsp_read_current_channel(mc_param.current_leg_select);
+      //bsp_read_current_channel(mc_param.current_leg_select);
       break;
     default:
       break;
   }
 }
 
-void erpm_task(void)
+void erpm_task(uint8_t center)
 {
   if (mc_param.state == STATE_OPEN_LOOP){
     open_loop_controller();
+    //If we're not at the center of the cycle then don't read the current, read everything else
+    if (center == 0){
+      switch (mc_param.adc_select){
+        case 0:
+          bsp_read_vbus();
+          mc_param.adc_select++;
+          break;
+        case 1:
+          bsp_read_temperature();
+          mc_param.adc_select = 0;
+          break;
+        default:
+          mc_param.adc_select = 0;
+          break;
+      }
+    }
+    else {
+      //The center of the PWM cycle is where the current should be measured, otherwise there is a possibility that the FET will by transitioning
+      mc_ol_param.request_current_flag = 1;
+    }
+  }
+  else if (mc_param.state == STATE_CLOSED_LOOP){
+    //XXX: For now once we reach the closed loop stage
+    mc_motor_stop();
   }
 }
 
@@ -252,16 +308,31 @@ void erpm_task(void)
  ****************************************************************************/
 void open_loop_current_regulator()
 {
-  if (abs(mc_param.current_ma) > (uint32_t) OL_MAX_STARTUP_CURRENT){
+  if (abs(mc_param.current_ma) > (uint32_t) OL_STARTUP_OVERCURRENT){
     //Disable the PWM until this current drops below this level
     mc_ol_param.over_current_count++;
     mc_ol_param.over_current_flag = 1;
+    //We hit the oh-shit point
+    mc_stop_motor();
+    return;
   }
-  else
+  else{
     mc_ol_param.over_current_flag = 0;
+    if (abs(mc_param.current_ma) < (uint32_t) OL_MIN_STARTUP_CURRENT){
+      if (mc_param.pulse_width < MAX_PWM - mc_ol_param.kp)
+        mc_param.pulse_width += mc_ol_param.kp;
+      else
+        mc_param.pulse_width = MAX_PWM;
+    }
+    else if (abs(mc_param.current_ma > (uint32_t) OL_MAX_STARTUP_CURRENT)){
+      if (mc_param.pulse_width > mc_ol_param.kp)
+        mc_param.pulse_width -= mc_ol_param.kp;
+      else
+        mc_param.pulse_width = 0;
+    }
+  }
 
-  if (mc_param.state == STATE_OPEN_LOOP)
-    open_loop_step();
+  open_loop_step();
 }
 
 void open_loop_step()
@@ -269,7 +340,8 @@ void open_loop_step()
   //Check for over current conditions
   if (mc_ol_param.over_current_flag){
     //Disable all outputs
-    bsp_disable_input_CH1_D_CH2_D_CH3_D();
+    //bsp_disable_input_CH1_D_CH2_D_CH3_D();
+    bsp_freewheeling();
     return;
   }
 

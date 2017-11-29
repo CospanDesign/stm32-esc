@@ -66,6 +66,7 @@ void bsp_enable_input_CH1_E_CH2_E_CH3_D(void);
 void bsp_enable_input_CH1_E_CH2_D_CH3_E(void);
 void bsp_enable_input_CH1_D_CH2_E_CH3_E(void);
 void bsp_disable_input_CH1_D_CH2_D_CH3_D(void);
+void bsp_freewheeling(void);
 void bsp_start_pwm_driving(void);
 void bsp_stop_pwm_driving(void);
 void bsp_pwm_set_duty_cycle_ch1(uint16_t);

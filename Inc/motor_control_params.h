@@ -4,14 +4,21 @@
 
 #define NUM_POLE_PAIRS                          7      /* Number of Motor Pole pairs */
 
+
+#define OL_STARTUP_OVERCURRENT               4000
+
 /*!< ********************* Open loop control *********************************/
-//#define OL_STARTUP_DUTY_CYCLE                 511     /*StartUP Duty Cycle*/
-#define OL_STARTUP_DUTY_CYCLE                  300     /*StartUP Duty Cycle*/
+#define MAX_PWM                               256
+//#define OL_STARTUP_DUTY_CYCLE                  32     /*StartUP Duty Cycle*/
+#define OL_STARTUP_DUTY_CYCLE                  32     /*StartUP Duty Cycle*/
 #define OL_MINIMUM_RPM                         60     /* 60 RPM = 1 Hertz */
-#define OL_MAX_STARTUP_CURRENT               4000
+#define OL_MAX_STARTUP_CURRENT               3000
+#define OL_MIN_STARTUP_CURRENT               1000
 //#define OL_MAX_STARTUP_CURRENT               10000
 #define OL_ACCELLERATION                       10
 #define OL_REVOLUTIONS_STEP                  1000     /* Every OL_REVOLUTIONS_STEP add OL_ACCELLERATION to the frequecy */
+#define OL_KP_GAIN                              1
+
 
 /*!< ********************* Closed Loop control *********************************/
 #define CL_KP_GAIN                            300      /* Kp parameter for PI regulator */

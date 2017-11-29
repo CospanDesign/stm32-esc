@@ -68,12 +68,12 @@ typedef struct
   uint8_t error;
   int16_t reference;
   int32_t rpm;
-  int32_t erpm;
+  uint32_t erpm;
   int32_t current_ma;
   uint8_t current_leg_select;
   uint32_t vbus_mv;
   uint32_t temp_c;
-  uint8_t idle_adc_select;
+  uint8_t adc_select;
 }  mc_param_t;
 
 //Closed Loop Parameters
@@ -92,8 +92,9 @@ typedef struct
   uint32_t revolutions;
   uint32_t over_current_flag;
   uint32_t over_current_count;
+  uint32_t request_current_flag;  //The ERPM Timer request this but it's executed in the PWM timer
+  uint32_t kp;
 } mc_ol_param_t;
-
 
 
 void mc_init(void);
