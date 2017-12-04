@@ -6,6 +6,7 @@
 
 
 #define OL_STARTUP_OVERCURRENT               4000
+#define TEMP_HIGH                              50       /* This might need to change later */
 
 /*!< ********************* Open loop control *********************************/
 #define MAX_PWM                               256

@@ -48,6 +48,10 @@
 #include "stdlib.h"
 #include "stdio.h"
 
+
+#define OVER_CURRENT_FLAG_POS 7
+#define OVER_TEMP_FLAG_POS 6
+
 typedef enum
 {
     STATE_IDLE                 = 0,
@@ -59,7 +63,6 @@ typedef enum
     STATE_STARTUP_BEMF_FAILURE = 13
 } mc_state_t;
 
-
 typedef struct
 {
   mc_state_t state;
@@ -67,13 +70,19 @@ typedef struct
   uint16_t pulse_width;
   uint8_t error;
   int16_t reference;
+  uint32_t rpm_counter;
+  uint32_t revolutions;
   int32_t rpm;
   uint32_t erpm;
   int32_t current_ma;
   uint8_t current_leg_select;
+  uint8_t bemf_leg_select;
   uint32_t vbus_mv;
   uint32_t temp_c;
   uint8_t adc_select;
+  uint8_t pole_count;
+  uint8_t over_current_flag;
+  uint8_t over_temp_flag;
 }  mc_param_t;
 
 //Closed Loop Parameters
@@ -89,10 +98,7 @@ typedef struct
   uint16_t target_rpm;
   uint32_t steps;
   uint32_t step;
-  uint32_t revolutions;
-  uint32_t over_current_flag;
-  uint32_t over_current_count;
-  uint32_t request_current_flag;  //The ERPM Timer request this but it's executed in the PWM timer
+  uint32_t revolution_step_count;
   uint32_t kp;
 } mc_ol_param_t;
 
@@ -103,7 +109,6 @@ void mc_start_motor(void);
 void mc_stop_motor(void);
 void mc_set_speed(int16_t);
 
-int32_t mc_get_erpm();
 int32_t mc_get_rpm();
 int32_t mc_get_current();
 

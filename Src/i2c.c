@@ -46,15 +46,14 @@ enum I2C_STATE_ENUM {
 enum I2C_COMM_REG_ADDR {
   I2C_REG_STATUS            = 1,
   I2C_REG_ERROR             = 2,
-	I2C_REG_ERPM              = 3,
-  I2C_REG_RPM               = 4,
-  I2C_REG_CURRENT           = 5,
-  I2C_REG_VBUS              = 6,
-  I2C_REG_TEMP              = 7,
-  I2C_REG_TARGET_OL_ERPM    = 8,
-  I2C_REG_BEMF_SAMPLE_COUNT = 9,
-  I2C_REG_BEMF_BUFFER       = 10,
-  I2C_REG_BEMF_BUFFER_DEPTH = 11
+  I2C_REG_RPM               = 3,
+  I2C_REG_CURRENT           = 4,
+  I2C_REG_VBUS              = 5,
+  I2C_REG_TEMP              = 6,
+  I2C_REG_TARGET_OL_ERPM    = 7,
+  I2C_REG_BEMF_SAMPLE_COUNT = 8,
+  I2C_REG_BEMF_BUFFER       = 9,
+  I2C_REG_BEMF_BUFFER_DEPTH = 10
 };
 
 int i2c_debug = 0;
@@ -306,13 +305,6 @@ void I2C_IRQ_Handler(unsigned char flags, unsigned short rx_data){
           case (I2C_REG_ERROR):
             data = mc_get_error();
             i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data & 0xFF);
-            break;
-					case (I2C_REG_ERPM):
-						data = mc_get_erpm();
-            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 24) & 0xFF;
-            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >> 16) & 0xFF;
-            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >>  8) & 0xFF;
-            i2c_struct.tx_buffer[i2c_struct.tx_index++] = (uint8_t) (data >>  0) & 0xFF;
             break;
           case (I2C_REG_RPM):
 						data = mc_get_rpm();

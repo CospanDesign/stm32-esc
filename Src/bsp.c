@@ -38,7 +38,7 @@ extern void mc_current_ma_callback(int32_t value);
 extern void mc_vbus_mv_callback(int32_t value);
 extern void mc_temp_c_callback(uint32_t value);
 extern void mc_systick_task(void);
-extern void erpm_task(uint8_t center);
+extern void mc_erpm_task(uint8_t center);
 extern void mc_break_callback();
 extern void mc_center_pwm_callback();
 
@@ -94,15 +94,7 @@ void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* hadc)
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
   //Called at the center of a PWM cycle
-  if (htim->Instance == ERPM_TIMER.Instance){
-    erpm_task(__HAL_TIM_IS_TIM_COUNTING_DOWN(&PWM_TIMER));
-  }
-  else if (htim->Instance == PWM_TIMER.Instance){
-    if (!__HAL_TIM_IS_TIM_COUNTING_DOWN(&PWM_TIMER)){
-      //This is called in the middle of a PWM Cycle, the best time to capture back emf and Current Driver
-      mc_center_pwm_callback();
-    }
-  }
+  mc_erpm_task(__HAL_TIM_IS_TIM_COUNTING_DOWN(&ERPM_TIMER));
 }
 
 void HAL_TIMEx_BreakCallback(TIM_HandleTypeDef *htim)
@@ -181,15 +173,15 @@ void bsp_esc_init()
 {
   adc_busy = 0;
 
-  __HAL_TIM_SetAutoreload(&PWM_TIMER, (uint16_t) MAX_PWM & 0xFFFF);
+  __HAL_TIM_SetAutoreload(&ERPM_TIMER, (uint16_t) MAX_PWM & 0xFFFF);
 
 /*
   HAL_ADC_Start_DMA(&hadc4, (uint32_t *)bemf_buffer, BEMF_BUFFER_SIZE);
 
 */
   __HAL_FREEZE_TIM1_DBGMCU();  // Stop TIM during Breakpoint
-  __HAL_TIM_ENABLE_IT(&PWM_TIMER, TIM_IT_BREAK); // Enable the TIM Break interrupt
-  __HAL_TIM_ENABLE_IT(&PWM_TIMER, TIM_IT_UPDATE);
+  __HAL_TIM_ENABLE_IT(&ERPM_TIMER, TIM_IT_BREAK); // Enable the TIM Break interrupt
+  __HAL_TIM_ENABLE_IT(&ERPM_TIMER, TIM_IT_UPDATE);
 }
 
 /**  bsp_enable_input_CH1_E_CH2_E_CH3_D    bsp_enable_input_CH1_E_CH2_E_CH3_D
@@ -198,14 +190,14 @@ void bsp_esc_init()
  */
 void bsp_enable_input_CH1_E_CH2_E_CH3_D()
 {
-  HAL_TIM_PWM_Start(&PWM_TIMER,PWM_TIMER_CH1);           //TIM1_CH1 ENABLE
-  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH1) ;
+  HAL_TIM_PWM_Start(&ERPM_TIMER,PWM_CH1);           //TIM1_CH1 ENABLE
+  HAL_TIMEx_PWMN_Start(&ERPM_TIMER,PWM_CH1) ;
 
-  HAL_TIM_PWM_Start(&PWM_TIMER,PWM_TIMER_CH2);           //TIM1_CH2 ENABLE  
-  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH2) ;
+  HAL_TIM_PWM_Start(&ERPM_TIMER,PWM_CH2);           //TIM1_CH2 ENABLE  
+  HAL_TIMEx_PWMN_Start(&ERPM_TIMER,PWM_CH2) ;
 
-  HAL_TIM_PWM_Stop(&PWM_TIMER,PWM_TIMER_CH3);           //TIM1_CH3 DISABLE  
-  HAL_TIMEx_PWMN_Stop(&PWM_TIMER,PWM_TIMER_CH3) ;  
+  HAL_TIM_PWM_Stop(&ERPM_TIMER,PWM_CH3);           //TIM1_CH3 DISABLE  
+  HAL_TIMEx_PWMN_Stop(&ERPM_TIMER,PWM_CH3) ;  
 }
 
 /**  bsp_enable_input_CH1_E_CH2_D_CH3_E    bsp_enable_input_CH1_E_CH2_D_CH3_E
@@ -214,14 +206,14 @@ void bsp_enable_input_CH1_E_CH2_E_CH3_D()
  */
 void  bsp_enable_input_CH1_E_CH2_D_CH3_E()
 {
-  HAL_TIM_PWM_Start(&PWM_TIMER,PWM_TIMER_CH1);           //TIM1_CH1 ENABLE 
-  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH1) ;
+  HAL_TIM_PWM_Start(&ERPM_TIMER,PWM_CH1);           //TIM1_CH1 ENABLE 
+  HAL_TIMEx_PWMN_Start(&ERPM_TIMER,PWM_CH1) ;
 
-  HAL_TIM_PWM_Stop(&PWM_TIMER,PWM_TIMER_CH2);           //TIM1_CH2  DISABLE 
-  HAL_TIMEx_PWMN_Stop(&PWM_TIMER,PWM_TIMER_CH2) ;
+  HAL_TIM_PWM_Stop(&ERPM_TIMER,PWM_CH2);           //TIM1_CH2  DISABLE 
+  HAL_TIMEx_PWMN_Stop(&ERPM_TIMER,PWM_CH2) ;
 
-  HAL_TIM_PWM_Start(&PWM_TIMER,PWM_TIMER_CH3);           //TIM1_CH3 ENABLE  
-  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH3) ;    
+  HAL_TIM_PWM_Start(&ERPM_TIMER,PWM_CH3);           //TIM1_CH3 ENABLE  
+  HAL_TIMEx_PWMN_Start(&ERPM_TIMER,PWM_CH3) ;    
 }
 
 /**  bsp_enable_input_CH1_D_CH2_E_CH3_E    bsp_enable_input_CH1_D_CH2_E_CH3_E
@@ -230,14 +222,14 @@ void  bsp_enable_input_CH1_E_CH2_D_CH3_E()
  */
 void bsp_enable_input_CH1_D_CH2_E_CH3_E()
 {
-  HAL_TIM_PWM_Stop(&PWM_TIMER,PWM_TIMER_CH1);           //TIM1_CH1 DISABLE 
-  HAL_TIMEx_PWMN_Stop(&PWM_TIMER,PWM_TIMER_CH1) ;
+  HAL_TIM_PWM_Stop(&ERPM_TIMER,PWM_CH1);           //TIM1_CH1 DISABLE 
+  HAL_TIMEx_PWMN_Stop(&ERPM_TIMER,PWM_CH1) ;
 
-  HAL_TIM_PWM_Start(&PWM_TIMER,PWM_TIMER_CH2);           //TIM1_CH2 ENABLE  
-  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH2) ;
+  HAL_TIM_PWM_Start(&ERPM_TIMER,PWM_CH2);           //TIM1_CH2 ENABLE  
+  HAL_TIMEx_PWMN_Start(&ERPM_TIMER,PWM_CH2) ;
 
-  HAL_TIM_PWM_Start(&PWM_TIMER,PWM_TIMER_CH3);           //TIM1_CH3 ENABLE  
-  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH3) ;  
+  HAL_TIM_PWM_Start(&ERPM_TIMER,PWM_CH3);           //TIM1_CH3 ENABLE  
+  HAL_TIMEx_PWMN_Start(&ERPM_TIMER,PWM_CH3) ;  
 }
 
 /**  bsp_disable_input_CH1_D_CH2_D_CH3_D    bsp_disable_input_CH1_D_CH2_D_CH3_D
@@ -246,14 +238,14 @@ void bsp_enable_input_CH1_D_CH2_E_CH3_E()
  */
 void bsp_disable_input_CH1_D_CH2_D_CH3_D()
 {
-  HAL_TIM_PWM_Stop(&PWM_TIMER,PWM_TIMER_CH1);           //TIM1_CH1 DISABLE 
-  HAL_TIMEx_PWMN_Stop(&PWM_TIMER,PWM_TIMER_CH1) ;
+  HAL_TIM_PWM_Stop(&ERPM_TIMER,PWM_CH1);           //TIM1_CH1 DISABLE 
+  HAL_TIMEx_PWMN_Stop(&ERPM_TIMER,PWM_CH1) ;
 
-  HAL_TIM_PWM_Stop(&PWM_TIMER,PWM_TIMER_CH2);           //TIM1_CH2  DISABLE 
-  HAL_TIMEx_PWMN_Stop(&PWM_TIMER,PWM_TIMER_CH2) ;
+  HAL_TIM_PWM_Stop(&ERPM_TIMER,PWM_CH2);           //TIM1_CH2  DISABLE 
+  HAL_TIMEx_PWMN_Stop(&ERPM_TIMER,PWM_CH2) ;
 
-  HAL_TIM_PWM_Stop(&PWM_TIMER,PWM_TIMER_CH3);           //TIM1_CH3 DISABLE  
-  HAL_TIMEx_PWMN_Stop(&PWM_TIMER,PWM_TIMER_CH3) ;  
+  HAL_TIM_PWM_Stop(&ERPM_TIMER,PWM_CH3);           //TIM1_CH3 DISABLE  
+  HAL_TIMEx_PWMN_Stop(&ERPM_TIMER,PWM_CH3) ;  
 }
 
 
@@ -263,14 +255,14 @@ void bsp_freewheeling()
   bsp_pwm_set_duty_cycle_ch2(0);
   bsp_pwm_set_duty_cycle_ch2(0);
 
-  HAL_TIM_PWM_Start(&PWM_TIMER,PWM_TIMER_CH1);           //Enable only the lowside
-  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH1) ;
+  HAL_TIM_PWM_Start(&ERPM_TIMER,PWM_CH1);           //Enable only the lowside
+  HAL_TIMEx_PWMN_Start(&ERPM_TIMER,PWM_CH1) ;
 
-  HAL_TIM_PWM_Start(&PWM_TIMER,PWM_TIMER_CH2);           //Enable only the lowside
-  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH2) ;
+  HAL_TIM_PWM_Start(&ERPM_TIMER,PWM_CH2);           //Enable only the lowside
+  HAL_TIMEx_PWMN_Start(&ERPM_TIMER,PWM_CH2) ;
 
-  HAL_TIM_PWM_Start(&PWM_TIMER,PWM_TIMER_CH3);           //Enable only the low side
-  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH3) ;  
+  HAL_TIM_PWM_Start(&ERPM_TIMER,PWM_CH3);           //Enable only the low side
+  HAL_TIMEx_PWMN_Start(&ERPM_TIMER,PWM_CH3) ;  
 
 }
 
@@ -280,14 +272,18 @@ void bsp_freewheeling()
  */
 void bsp_start_pwm_driving()
 {
-  HAL_TIM_PWM_Start(&PWM_TIMER, PWM_TIMER_CH1);           //TIM1_CH1 ENABLE   
-  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH1) ;  
+  bsp_pwm_set_duty_cycle_ch1(0);
+  bsp_pwm_set_duty_cycle_ch2(0);
+  bsp_pwm_set_duty_cycle_ch2(0);
 
-  HAL_TIM_PWM_Start(&PWM_TIMER, PWM_TIMER_CH2);           //TIM1_CH2 ENABLE   
-  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH2) ;  
+  HAL_TIM_PWM_Start(&ERPM_TIMER, PWM_CH1);           //TIM1_CH1 ENABLE   
+  HAL_TIMEx_PWMN_Start(&ERPM_TIMER,PWM_CH1) ;  
 
-  HAL_TIM_PWM_Start(&PWM_TIMER, PWM_TIMER_CH3);           //TIM1_CH3 ENABLE  
-  HAL_TIMEx_PWMN_Start(&PWM_TIMER,PWM_TIMER_CH3) ;  
+  HAL_TIM_PWM_Start(&ERPM_TIMER, PWM_CH2);           //TIM1_CH2 ENABLE   
+  HAL_TIMEx_PWMN_Start(&ERPM_TIMER,PWM_CH2) ;  
+
+  HAL_TIM_PWM_Start(&ERPM_TIMER, PWM_CH3);           //TIM1_CH3 ENABLE  
+  HAL_TIMEx_PWMN_Start(&ERPM_TIMER,PWM_CH3) ;  
 
 }
 
@@ -297,14 +293,18 @@ void bsp_start_pwm_driving()
  */
 void bsp_stop_pwm_driving()
 {
-  HAL_TIM_PWM_Stop(&PWM_TIMER, PWM_TIMER_CH1);           //TIM1_CH1 DISABLE   
-  HAL_TIMEx_PWMN_Stop(&PWM_TIMER,PWM_TIMER_CH1) ;  
+  bsp_pwm_set_duty_cycle_ch1(0);
+  bsp_pwm_set_duty_cycle_ch2(0);
+  bsp_pwm_set_duty_cycle_ch2(0);
 
-  HAL_TIM_PWM_Stop(&PWM_TIMER, PWM_TIMER_CH2);           //TIM1_CH2 DISABLE   
-  HAL_TIMEx_PWMN_Stop(&PWM_TIMER,PWM_TIMER_CH2) ;  
+  HAL_TIM_PWM_Stop(&ERPM_TIMER, PWM_CH1);           //TIM1_CH1 DISABLE   
+  HAL_TIMEx_PWMN_Stop(&ERPM_TIMER,PWM_CH1) ;  
 
-  HAL_TIM_PWM_Stop(&PWM_TIMER, PWM_TIMER_CH3);           //TIM1_CH3 DISABLE  
-  HAL_TIMEx_PWMN_Stop(&PWM_TIMER,PWM_TIMER_CH3) ;  
+  HAL_TIM_PWM_Stop(&ERPM_TIMER, PWM_CH2);           //TIM1_CH2 DISABLE   
+  HAL_TIMEx_PWMN_Stop(&ERPM_TIMER,PWM_CH2) ;  
+
+  HAL_TIM_PWM_Stop(&ERPM_TIMER, PWM_CH3);           //TIM1_CH3 DISABLE  
+  HAL_TIMEx_PWMN_Stop(&ERPM_TIMER,PWM_CH3) ;  
 }
 
 
@@ -313,14 +313,14 @@ void bsp_pwm_set_duty_cycle_percent(uint32_t channel, float percent_duty_cycle)
   uint16_t period;
   uint16_t pulse;
 
-  period = __HAL_TIM_GetAutoreload(&PWM_TIMER);
+  period = __HAL_TIM_GetAutoreload(&ERPM_TIMER);
   if (percent_duty_cycle == 0){
     pulse = 0;
   }
   else {
     pulse = (uint16_t) rintf(((float) period) / 100.0 * percent_duty_cycle);
   }
-  __HAL_TIM_SET_COMPARE(&PWM_TIMER, channel, pulse);
+  __HAL_TIM_SET_COMPARE(&ERPM_TIMER, channel, pulse);
 }
 
 /**  bsp_pwm_set_duty_cycle_ch1    bsp_pwm_set_duty_cycle_ch1
@@ -329,8 +329,7 @@ void bsp_pwm_set_duty_cycle_percent(uint32_t channel, float percent_duty_cycle)
  */
 void bsp_pwm_set_duty_cycle_ch1(uint16_t CCR_value)
 {
-  //PWM_TIMER.Instance->PWM_TIMER_CCR1 = CCR_value;  
-  __HAL_TIM_SET_COMPARE(&PWM_TIMER, TIM_CHANNEL_1, CCR_value);
+  __HAL_TIM_SET_COMPARE(&ERPM_TIMER, PWM_CH1, CCR_value);
 }
 
 /**  bsp_pwm_set_duty_cycle_ch2    bsp_pwm_set_duty_cycle_ch2
@@ -339,8 +338,7 @@ void bsp_pwm_set_duty_cycle_ch1(uint16_t CCR_value)
  */
 void bsp_pwm_set_duty_cycle_ch2(uint16_t CCR_value)
 {
-  //PWM_TIMER.Instance->PWM_TIMER_CCR2 = CCR_value;  
-  __HAL_TIM_SET_COMPARE(&PWM_TIMER, TIM_CHANNEL_2, CCR_value);
+  __HAL_TIM_SET_COMPARE(&ERPM_TIMER, PWM_CH2, CCR_value);
 }
 
 /**  bsp_pwm_set_duty_cycle_ch3    bsp_pwm_set_duty_cycle_ch3
@@ -349,10 +347,10 @@ void bsp_pwm_set_duty_cycle_ch2(uint16_t CCR_value)
  */
 void bsp_pwm_set_duty_cycle_ch3(uint16_t CCR_value)
 {
-  //PWM_TIMER.Instance->PWM_TIMER_CCR3 = CCR_value;  
-  __HAL_TIM_SET_COMPARE(&PWM_TIMER, TIM_CHANNEL_3, CCR_value);
+  __HAL_TIM_SET_COMPARE(&ERPM_TIMER, PWM_CH3, CCR_value);
 }
 
+/*
 void bsp_enable_erpm_timer(uint8_t enable)
 {
   if (enable) 
@@ -360,6 +358,7 @@ void bsp_enable_erpm_timer(uint8_t enable)
   else
 	  HAL_TIM_Base_Stop_IT(&ERPM_TIMER);
 }
+*/
 
 void bsp_set_ol_rpm(uint32_t rpm_request)
 {

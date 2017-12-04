@@ -59,11 +59,8 @@
 
 void SystemClock_Config(void);
 volatile uint32_t test = 0;
-volatile uint32_t i2c_test = 0;
 
 //extern void initialise_monitor_handles(void);
-
-
 
 int main(void)
 {
@@ -81,12 +78,8 @@ int main(void)
   MX_ADC3_Init();
   MX_ADC4_Init();
   MX_TIM1_Init();
-  MX_TIM4_Init();
 
-  //initialise_monitor_handles();
-  //printf("Starting\n");
   mc_init();
-  //printf("Motor Controller Initialized\n");
 
 
   while (1)
